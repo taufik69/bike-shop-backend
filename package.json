@@ -1,0 +1,32 @@
+{
+  "name": "furniturebackend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "nodemon index.js",
+    "worker": "nodemon  src/shared/workers/example.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bullmq": "^5.69.2",
+    "cloudinary": "^2.9.0",
+    "compression": "^1.8.1",
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "express-joi-validations": "^0.1.0",
+    "ioredis": "^5.9.3",
+    "module-alias": "^2.3.4",
+    "mongodb": "^7.1.0",
+    "mongoose": "^9.2.1",
+    "morgan": "^1.10.1",
+    "multer": "^2.0.2",
+    "nodemon": "^3.1.11",
+    "slugify": "^1.6.6"
+  },
+  "_moduleAliases": {
+    "@": "src"
+  }
+}

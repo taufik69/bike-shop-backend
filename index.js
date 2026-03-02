@@ -11,7 +11,7 @@ connectDatabase()
     console.log("Server started on port 3000");
   })
   .then(() => {
-    require("@/shared/workers/example");
+    // require("@/shared/workers/example");
   })
   .catch((error) => {
     console.log(error);

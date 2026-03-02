@@ -23,7 +23,7 @@ const cloudinaryFileUpload = async (localFilePath) => {
     quality: "auto",
     transformation: [{ width: 1024, crop: "limit" }],
   });
-
+  console.log("Cloudinary Upload Result:", result.url);
   return {
     secure_url: result.secure_url,
     public_id: result.public_id,

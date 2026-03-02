@@ -9,7 +9,7 @@ const validateImageFiles = ({
   next,
   required = false,
   maxCount = 10,
-  maxSizeMB = 1,
+  maxSizeMB = 10,
   fieldName = "image",
 }) => {
   const files = req?.files?.[fieldName];
@@ -83,7 +83,7 @@ const validateImageFiles = ({
   }
 
   // size check (each)
-  const MAX_SIZE = maxSizeMB * 1024 * 1024;
+  const MAX_SIZE = maxSizeMB * 1024 * 1024; // Convert MB to bytes
   const tooLarge = files.find((f) => f.size > MAX_SIZE);
   if (tooLarge) {
     files.forEach((f) => {

@@ -17,6 +17,7 @@ class BikeController {
   // getbike
   getBikes = asyncHandler(async (req, res) => {
     let query = {};
+    let sort = {};
     if (req.query?.slug) {
       query.slug = req.query.slug;
     } else if (req.query?.isSale) {
@@ -34,7 +35,15 @@ class BikeController {
     } else {
       query = {};
     }
-    const bikes = await bikeService.getBikes(query);
+    // sort query
+    if (req.query?.sortBy == "desc") {
+      sort.createdAt = sort.createdAt = -1;
+    } else if (req.query?.sortBy == "asc") {
+      sort.createdAt = sort.createdAt = 1;
+    } else {
+      sort = {};
+    }
+    const bikes = await bikeService.getBikes(query, sort);
     return ApiResponse.success(
       res,
       HTTP_STATUS.OK,

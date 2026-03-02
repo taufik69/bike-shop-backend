@@ -29,13 +29,13 @@ class bikeService {
     );
     return bike;
   };
-  getBikes = async (query) => {
+  getBikes = async (query, sortQuery) => {
     // const cacheKey = `bikes:${JSON.stringify(query)}`;
     // const cachedData = await getCache(cacheKey);
     // if (cachedData) {
     //   return JSON.parse(cachedData);
     // }
-    const bikes = await bikeModel.find(query).sort({ createdAt: -1 }).lean();
+    const bikes = await bikeModel.find(query).sort(sortQuery).lean();
     // await setCache(cacheKey, JSON.stringify(bikes), "EX", 60 * 60); // cache for 1 hour
     return bikes;
   };

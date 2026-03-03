@@ -12,6 +12,7 @@ const {
   deleteCloudinaryFile,
 } = require("@/shared/config/cloudinary.config");
 const bikeModel = require("@/modules/bike/bike.model");
+const categoryModel = require("@/modules/category/category.model");
 
 const { connectDatabase } = require("../config/db.config");
 
@@ -22,6 +23,16 @@ connectDatabase().then(() => {
       if (job.name === "upload-bike-image") {
         // return handleCreateBikeImage(job);
         handleCreateBikeImage(job);
+      }
+      if (job.name === "delete-bike-image") {
+        handleDeleteBikeImage(job);
+      }
+
+      if (job.name === "upload-category-image") {
+        handleUploadCategoryImage(job);
+      }
+      if (job.name === "delete-category-image") {
+        handleDeleteCategoryImage(job);
       }
 
       // unknown job
@@ -119,6 +130,82 @@ async function handleCreateBikeImage(job) {
         throw err;
       }
     }
+  } catch (err) {
+    console.error(err);
+    throw err;
+  }
+}
+
+// delete bike image
+
+async function handleDeleteBikeImage(job) {
+  const { bikeId, images } = job.data;
+
+  try {
+    const bike = await bikeModel.findById(bikeId).select("_id");
+    if (!bike) throw new Error("Bike not found");
+
+    for (const img of images) {
+      if (img.publicId) {
+        try {
+          await deleteCloudinaryFile(img.publicId);
+        } catch (err) {
+          console.error("Failed to delete from Cloudinary:", err);
+        }
+      }
+    }
+    //  delete bike whole document
+    await bikeModel.findByIdAndDelete(bikeId);
+  } catch (err) {
+    console.error(err);
+    throw err;
+  }
+}
+
+// handleUploadCategoryImage job
+async function handleUploadCategoryImage(job) {
+  const { categoryId, localPath } = job.data;
+
+  try {
+    const absPath = path.resolve(localPath);
+    const uploaded = await cloudinaryFileUpload(absPath);
+
+    // Here you would update the category document with the uploaded image details
+    // For example:
+    await categoryModel.findByIdAndUpdate(categoryId, {
+      image: {
+        url: uploaded?.secure_url || "",
+        publicId: uploaded?.public_id || "",
+        status: "uploaded",
+        localPath: "",
+        tries: job.attemptsMade + 1,
+        lastError: "",
+      },
+    });
+
+    // Cleanup local file
+    await fs.unlink(absPath).catch(() => null);
+  } catch (err) {
+    console.error(err);
+    throw err;
+  }
+}
+
+// handleDeleteCategoryImage job
+async function handleDeleteCategoryImage(job) {
+  const { categoryId, publicId } = job.data;
+  console.log(publicId);
+
+  try {
+    if (publicId) {
+      try {
+        await deleteCloudinaryFile(publicId);
+      } catch (err) {
+        console.error("Failed to delete from Cloudinary:", err);
+      }
+    }
+    // Optionally, you can also remove the image reference from the category document
+    await categoryModel.findByIdAndDelete(categoryId);
   } catch (err) {
     console.error(err);
     throw err;

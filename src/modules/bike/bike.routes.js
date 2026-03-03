@@ -10,5 +10,6 @@ _.route("/create-bike").post(
   bikeController.createBike,
 );
 _.route("/get-bikes").get(bikeController.getBikes);
+_.route("/delete-bike/:slug").delete(bikeController.deleteBike);
 
 module.exports = _;

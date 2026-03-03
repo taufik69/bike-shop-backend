@@ -44,6 +44,31 @@ class bikeService {
     // await setCache(cacheKey, JSON.stringify(bikes), "EX", 60 * 60); // cache for 1 hour
     return bikes;
   };
+
+  // delete bike
+  deleteBike = async (slug) => {
+    const bike = await bikeModel.findOne({ slug });
+    if (!bike) {
+      throw new ApiError("Bike not found", HTTP_STATUS.NOT_FOUND);
+    }
+    // now call the queue and delete image on background
+    imageQueue.add(
+      "delete-bike-image",
+      {
+        bikeId: bike._id,
+        images: bike.image,
+      },
+      {
+        attempts: 3,
+        backoff: { type: "exponential", delay: 3000 },
+        removeOnComplete: true,
+        removeOnFail: false,
+      },
+    );
+    // flush cache
+    // await flushdb();
+    return bike.name;
+  };
 }
 
 module.exports = new bikeService();

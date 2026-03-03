@@ -66,6 +66,17 @@ class BikeController {
       bikes,
     );
   });
+  // delete bike using slug
+  deleteBike = asyncHandler(async (req, res) => {
+    const slug = req.params.slug;
+    const bike = await bikeService.deleteBike(slug);
+    return ApiResponse.success(
+      res,
+      HTTP_STATUS.OK,
+      "Bike deleted successfully",
+      bike,
+    );
+  });
 }
 
 module.exports = new BikeController();

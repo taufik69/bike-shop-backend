@@ -11,65 +11,61 @@ class createOrderService {
       let createdOrder = null;
 
       await session.withTransaction(async () => {
-        // 2) fetch products (single query)
+        // 1) collect bikeIds
         const bikeIds = data.items.map((it) => it.bikeId);
 
+        // 2) fetch bikes (single query)
         const bikes = await bikeModel
           .find({ _id: { $in: bikeIds } })
+          .select("_id name price stock discountPercentage afterDiscountPrice") // keep small
           .lean()
           .session(session);
 
-        const bMap = new Map(bikes.map((p) => [String(p._id), p]));
+        const bMap = new Map(bikes.map((b) => [String(b._id), b]));
 
-        // 3) calc totals + validate stock
+        // 3) build order items + validate stock + totals
         let totalQty = 0;
         let subtotal = 0;
 
         const orderItems = data.items.map((it) => {
-          const p = bMap.get(String(it.bikeId));
+          const bike = bMap.get(String(it.bikeId));
 
-          if (!p) {
+          if (!bike) {
             throw new ApiError(
-              "Invalid product in items",
+              "Invalid bikeId in items",
               HTTP_STATUS.BAD_REQUEST,
             );
           }
 
           const qty = Number(it.qty || 0);
-          console.log(p);
-          return;
-          if (qty <= 0) {
+          if (!Number.isFinite(qty) || qty <= 0) {
             throw new ApiError("Invalid quantity", HTTP_STATUS.BAD_REQUEST);
           }
 
-          if (Number(p.stock || 0) < qty) {
+          const stock = Number(bike.stock || 0);
+          if (stock < qty) {
             throw new ApiError(
-              `Insufficient stock for ${p.name}. Available: ${p.stock}, Requested: ${qty}`,
+              `Insufficient stock for ${bike.name}. Available: ${stock}, Requested: ${qty}`,
               HTTP_STATUS.BAD_REQUEST,
             );
           }
-          let unitPrice = p.price;
-          if (p.discountPercentage > 0) {
-            unitPrice = p.afterDiscountPrice;
-          }
+
+          const unitPrice =
+            Number(bike.discountPercentage || 0) > 0
+              ? Number(bike.afterDiscountPrice || bike.price)
+              : Number(bike.price);
 
           totalQty += qty;
           subtotal += unitPrice * qty;
 
+          // order model অনুযায়ী
           return {
-            productId: p._id,
-            name: it.name || p.name,
-            slug: it.slug,
-            image: it.image,
-            price: unitPrice,
+            bikeId: bike._id,
             qty,
-            color: it.color || null,
-            size: it.size || null,
           };
         });
 
-        // 4) create order inside transaction
-        // create([doc], {session}) is safest with transactions
+        // 4) create order
         const docs = await orderModel.create(
           [
             {
@@ -80,11 +76,16 @@ class createOrderService {
               },
               email: data.email ? String(data.email).trim() : null,
               note: data.note ? String(data.note).trim() : null,
-              paymentMethod: data.paymentMethod || null,
-              accountNumber: data.accountNumber || null,
-              transactionId: data.transactionId || null,
-              note: data.note ? String(data.note).trim() : null,
-              paymentMethod: data.paymentMethod || "cod",
+              paymentMethod: data.paymentMethod
+                ? String(data.paymentMethod).trim()
+                : null,
+              accountNumber: data.accountNumber
+                ? String(data.accountNumber).trim()
+                : null,
+              transactionId: data.transactionId
+                ? String(data.transactionId).trim()
+                : null,
+
               items: orderItems,
               totalQty,
               subtotal,
@@ -98,50 +99,52 @@ class createOrderService {
           throw new ApiError("Order not created", HTTP_STATUS.BAD_REQUEST);
         }
 
-        // 5) reduce stock (atomic + race safe)
+        // 5) reduce stock (race-safe)
+        // ensure stock is still enough at update time
         for (const it of orderItems) {
           const r = await bikeModel.updateOne(
-            { _id: it.bikeId },
+            { _id: it.bikeId, stock: { $gte: it.qty } },
             { $inc: { stock: -it.qty } },
             { session },
           );
 
           if (r.modifiedCount !== 1) {
-            // someone else bought same stock in parallel
             throw new ApiError(
-              "Stock update failed (race condition)",
+              "Stock update failed (race condition / out of stock)",
               HTTP_STATUS.CONFLICT,
             );
           }
         }
       });
 
-      // committed successfully
       return createdOrder;
-    } catch (err) {
-      throw err;
     } finally {
-      session.endSession();
+      await session.endSession();
     }
   }
 
   //   get getOrders
-  // getOrders = async (query) => {
-  //   const orders = await orderModel.find(query).sort({ createdAt: -1 });
-  //   if (!orders) {
-  //     throw new ApiError("Orders not found", HTTP_STATUS.BAD_REQUEST);
-  //   }
-  //   return orders;
-  // };
+  getOrders = async (query = {}) => {
+    const orders = await orderModel
+      .find(query)
+      .populate("items.bikeId")
+      .sort({ createdAt: -1 });
 
-  // //   delete deleteOrder
-  // deleteOrder = async (id) => {
-  //   const order = await orderModel.findOneAndDelete({ invoiceId: id });
-  //   if (!order) {
-  //     throw new ApiError("Order not found", HTTP_STATUS.BAD_REQUEST);
-  //   }
-  //   return order;
-  // };
+    if (!orders.length) {
+      throw new ApiError("Orders not found", HTTP_STATUS.NOT_FOUND);
+    }
+
+    return orders;
+  };
+
+  //delete deleteOrder
+  deleteOrder = async (id) => {
+    const order = await orderModel.findOneAndDelete({ invoiceId: id });
+    if (!order) {
+      throw new ApiError("Order not found", HTTP_STATUS.BAD_REQUEST);
+    }
+    return order;
+  };
 }
 
 module.exports = new createOrderService();

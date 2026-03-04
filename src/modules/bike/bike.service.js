@@ -40,6 +40,7 @@ class bikeService {
       .sort(sortQuery)
       .skip(skip)
       .limit(limit)
+      .populate("category")
       .lean();
     // await setCache(cacheKey, JSON.stringify(bikes), "EX", 60 * 60); // cache for 1 hour
     return bikes;

@@ -15,6 +15,7 @@ const bikeModel = require("@/modules/bike/bike.model");
 const categoryModel = require("@/modules/category/category.model");
 
 const { connectDatabase } = require("../config/db.config");
+const { bumpNsVersion } = require("../utils/cache.util");
 
 connectDatabase().then(() => {
   const worker = new Worker(
@@ -156,6 +157,8 @@ async function handleDeleteBikeImage(job) {
     }
     //  delete bike whole document
     await bikeModel.findByIdAndDelete(bikeId);
+    await bumpNsVersion("bikes");
+    await bumpNsVersion("categories");
   } catch (err) {
     console.error(err);
     throw err;
@@ -183,6 +186,7 @@ async function handleUploadCategoryImage(job) {
       },
     });
 
+    await bumpNsVersion("categories");
     // Cleanup local file
     await fs.unlink(absPath).catch(() => null);
   } catch (err) {
@@ -206,6 +210,8 @@ async function handleDeleteCategoryImage(job) {
     }
     // Optionally, you can also remove the image reference from the category document
     await categoryModel.findByIdAndDelete(categoryId);
+    // revalidate all bikes list caches
+    await bumpNsVersion("categories");
   } catch (err) {
     console.error(err);
     throw err;

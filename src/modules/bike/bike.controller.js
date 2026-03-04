@@ -3,10 +3,66 @@ const asyncHandler = require("@/shared/utils/asyncHandeler.utils");
 const { HTTP_STATUS } = require("@/shared/config/constant.config");
 const bikeService = require("@/modules/bike/bike.service");
 
+// cache utils
+const {
+  getCache,
+  setCache,
+  buildCacheKey,
+  bumpNsVersion,
+  deleteCache,
+} = require("@/shared/utils/cache.util");
+
+// stable suffix builder (order same থাকলে key same হবে)
+const buildBikesSuffix = (q) => {
+  const page = Number(q.page || 1);
+  const limit = Number(q.limit || 10);
+
+  // filters (only one will be active in your current else-if chain)
+  const slug = q.slug ? String(q.slug).trim() : "";
+  const isSale = q.isSale ?? "";
+  const isNew = q.isNew ?? "";
+  const isTopSelling = q.isTopSelling ?? "";
+  const isHotDeal = q.isHotDeal ?? "";
+  const isPopular = q.isPopular ?? "";
+  const isFeatured = q.isFeatured ?? "";
+  const category = q.category ? String(q.category).trim() : "";
+  const search = q.search ? String(q.search).trim() : "";
+  const minPrice = q.minPrice ?? "";
+  const maxPrice = q.maxPrice ?? "";
+  const sortBy = q.sortBy ? String(q.sortBy).trim() : "";
+
+  // ensure stable suffix string
+  return [
+    `page=${page}`,
+    `limit=${limit}`,
+    `slug=${slug}`,
+    `isSale=${isSale}`,
+    `isNew=${isNew}`,
+    `isTopSelling=${isTopSelling}`,
+    `isHotDeal=${isHotDeal}`,
+    `isPopular=${isPopular}`,
+    `isFeatured=${isFeatured}`,
+    `category=${category}`,
+    `search=${search}`,
+    `minPrice=${minPrice}`,
+    `maxPrice=${maxPrice}`,
+    `sortBy=${sortBy}`,
+  ].join("&");
+};
+
 class BikeController {
   createBike = asyncHandler(async (req, res) => {
     const data = req.validatedData;
     const bike = await bikeService.createBike(data);
+
+    //  revalidate all bikes list caches
+    await bumpNsVersion("bikes");
+
+    //  optional: if you cache single bike by slug
+    if (bike?.slug) {
+      await deleteCache(`bike:${bike.slug}`);
+    }
+
     return ApiResponse.success(
       res,
       HTTP_STATUS.CREATED,
@@ -14,13 +70,17 @@ class BikeController {
       bike,
     );
   });
-  // getbike
+
+  // get bikes (list / filter / search / price / pagination)
   getBikes = asyncHandler(async (req, res) => {
     let query = {};
     let sort = {};
-    let page = parseInt(req.query.page) || 1;
-    let limit = parseInt(req.query.limit) || 10;
-    let skip = (page - 1) * limit;
+
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    //  your existing filter chain (unchanged)
     if (req.query?.slug) {
       query.slug = req.query.slug;
     } else if (req.query?.isSale) {
@@ -50,15 +110,37 @@ class BikeController {
     } else {
       query = {};
     }
-    // sort query
+
+    //  sort
     if (req.query?.sortBy == "desc") {
-      sort.createdAt = sort.createdAt = -1;
+      sort.createdAt = -1;
     } else if (req.query?.sortBy == "asc") {
-      sort.createdAt = sort.createdAt = 1;
+      sort.createdAt = 1;
     } else {
       sort = {};
     }
+
+    //  cache key (based on req.query)
+    const suffix = buildBikesSuffix(req.query);
+    const cacheKey = await buildCacheKey("bikes", suffix);
+
+    //  try cache
+    const cached = await getCache(cacheKey);
+    if (cached) {
+      return ApiResponse.success(
+        res,
+        HTTP_STATUS.OK,
+        "Bikes fetched successfully",
+        cached,
+      );
+    }
+
+    //  DB fetch
     const bikes = await bikeService.getBikes(query, sort, limit, skip);
+
+    //  set cache (ttl adjust)
+    await setCache(cacheKey, bikes, 60);
+
     return ApiResponse.success(
       res,
       HTTP_STATUS.OK,
@@ -66,10 +148,16 @@ class BikeController {
       bikes,
     );
   });
+
   // delete bike using slug
   deleteBike = asyncHandler(async (req, res) => {
-    const slug = req.params.slug;
+    const slug = req.params.slug ? String(req.params.slug).trim() : null;
+
     const bike = await bikeService.deleteBike(slug);
+
+    // revalidate all bikes list caches
+    await bumpNsVersion("bikes");
+
     return ApiResponse.success(
       res,
       HTTP_STATUS.OK,

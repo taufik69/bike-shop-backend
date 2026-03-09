@@ -13,19 +13,19 @@ _.route("/create-contact").post(
   contactController.createContact,
 );
 
-// GET    /api/v1/contact/all
-_.route("/all").get(contactController.getAllContacts);
+// GET   /api/v1/contact/all
+_.route("/get-contacts").get(contactController.getAllContacts);
 
-// GET    /api/v1/contact/:id
-_.route("/:id").get(contactController.getContactById);
+// GET   /api/v1/contact/:id
+_.route("/get-contact/:id").get(contactController.getContactById);
 
 // PATCH  /api/v1/contact/update/:id
-_.route("/update/:id").patch(
+_.route("/update-contact/:id").put(
   validateUpdateContact,
   contactController.updateContact,
 );
 
 // DELETE /api/v1/contact/delete/:id
-_.route("/delete/:id").delete(contactController.deleteContact);
+_.route("/delete-contact/:id").delete(contactController.deleteContact);
 
 module.exports = _;

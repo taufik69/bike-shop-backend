@@ -1,3 +1,5 @@
+const { HTTP_STATUS } = require("@/shared/config/constant.config");
+const { ApiError } = require("@/shared/utils/apiError.utils");
 const mongoose = require("mongoose");
 
 // BD phone number regex: 01XXXXXXXXX or +8801XXXXXXXXX
@@ -65,5 +67,19 @@ const contactSchema = new mongoose.Schema(
   },
 );
 
+// check contact number or whats'a app number already exist or not
+contactSchema.pre("save", async function (next) {
+  const contact = await this.constructor.findOne({
+    contactNumber: this.contactNumber,
+    whatsappNumber: this.whatsappNumber,
+  });
+  if (contact) {
+    throw new ApiError(
+      "Contact number or WhatsApp number already exist",
+      HTTP_STATUS.BAD_REQUEST,
+    );
+  }
+  next();
+});
 module.exports =
   mongoose.models.Contact || mongoose.model("Contact", contactSchema);

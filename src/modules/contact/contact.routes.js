@@ -16,9 +16,6 @@ _.route("/create-contact").post(
 // GET   /api/v1/contact/all
 _.route("/get-contacts").get(contactController.getAllContacts);
 
-// GET   /api/v1/contact/:id
-_.route("/get-contact/:id").get(contactController.getContactById);
-
 // PATCH  /api/v1/contact/update/:id
 _.route("/update-contact/:id").put(
   validateUpdateContact,

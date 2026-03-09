@@ -13,7 +13,7 @@ _.route("/create-contact").post(
   contactController.createContact,
 );
 
-// GET   /api/v1/contact/all
+// GET   /api/v1/contact
 _.route("/get-contacts").get(contactController.getAllContacts);
 
 // PATCH  /api/v1/contact/update/:id

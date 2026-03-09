@@ -18,7 +18,13 @@ class ContactController {
 
   // GET /contact/all
   getAllContacts = asyncHandler(async (req, res) => {
-    const contacts = await contactService.getAllContacts();
+    let q = {};
+    if (req.query.id) {
+      q._id = req.query.id;
+    } else {
+      q = {};
+    }
+    const contacts = await contactService.getAllContacts(q);
     return ApiResponse.success(
       res,
       HTTP_STATUS.OK,

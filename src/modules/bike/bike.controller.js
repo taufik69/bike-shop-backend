@@ -2,8 +2,6 @@ const ApiResponse = require("@/shared/utils/apiResponse.utils");
 const asyncHandler = require("@/shared/utils/asyncHandeler.utils");
 const { HTTP_STATUS } = require("@/shared/config/constant.config");
 const bikeService = require("@/modules/bike/bike.service");
-
-// cache utils
 const {
   getCache,
   setCache,
@@ -12,12 +10,13 @@ const {
   deleteCache,
 } = require("@/shared/utils/cache.util");
 
-// stable suffix builder (order same থাকলে key same হবে)
+// Namespace used for all bike caches
+const NS = "bikes";
+
+// Stable suffix builder for list caching
 const buildBikesSuffix = (q) => {
   const page = Number(q.page || 1);
   const limit = Number(q.limit || 10);
-
-  // filters (only one will be active in your current else-if chain)
   const slug = q.slug ? String(q.slug).trim() : "";
   const isSale = q.isSale ?? "";
   const isNew = q.isNew ?? "";
@@ -31,7 +30,6 @@ const buildBikesSuffix = (q) => {
   const maxPrice = q.maxPrice ?? "";
   const sortBy = q.sortBy ? String(q.sortBy).trim() : "";
 
-  // ensure stable suffix string
   return [
     `page=${page}`,
     `limit=${limit}`,
@@ -51,17 +49,13 @@ const buildBikesSuffix = (q) => {
 };
 
 class BikeController {
+  // POST /bike/create-bike
   createBike = asyncHandler(async (req, res) => {
     const data = req.validatedData;
     const bike = await bikeService.createBike(data);
 
-    //  revalidate all bikes list caches
-    await bumpNsVersion("bikes");
-
-    //  optional: if you cache single bike by slug
-    if (bike?.slug) {
-      await deleteCache(`bike:${bike.slug}`);
-    }
+    // Invalidate all bikes list caches
+    await bumpNsVersion(NS);
 
     return ApiResponse.success(
       res,
@@ -71,7 +65,7 @@ class BikeController {
     );
   });
 
-  // get bikes (list / filter / search / price / pagination)
+  // GET /bike/get-bikes
   getBikes = asyncHandler(async (req, res) => {
     let query = {};
     let sort = {};
@@ -80,7 +74,7 @@ class BikeController {
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
-    //  your existing filter chain (unchanged)
+    // Filters
     if (req.query?.slug) {
       query.slug = req.query.slug;
     } else if (req.query?.isSale) {
@@ -107,38 +101,34 @@ class BikeController {
         $gte: parseFloat(req.query.minPrice),
         $lte: parseFloat(req.query.maxPrice),
       };
-    } else {
-      query = {};
     }
 
-    //  sort
-    if (req.query?.sortBy == "desc") {
+    // Sort
+    if (req.query?.sortBy === "desc") {
       sort.createdAt = -1;
-    } else if (req.query?.sortBy == "asc") {
+    } else if (req.query?.sortBy === "asc") {
       sort.createdAt = 1;
-    } else {
-      sort = {};
     }
 
-    //  cache key (based on req.query)
+    // Cache key generation
     const suffix = buildBikesSuffix(req.query);
-    const cacheKey = await buildCacheKey("bikes", suffix);
+    const cacheKey = await buildCacheKey(NS, suffix);
 
-    //  try cache
+    // Try cache first
     const cached = await getCache(cacheKey);
     if (cached) {
       return ApiResponse.success(
         res,
         HTTP_STATUS.OK,
-        "Bikes fetched successfully",
+        "Bikes fetched successfully (cache)",
         cached,
       );
     }
 
-    //  DB fetch
+    // DB fetch
     const bikes = await bikeService.getBikes(query, sort, limit, skip);
 
-    //  set cache (ttl adjust)
+    // Store in cache for 60 seconds
     await setCache(cacheKey, bikes, 60);
 
     return ApiResponse.success(
@@ -149,20 +139,20 @@ class BikeController {
     );
   });
 
-  // delete bike using slug
+  // DELETE /bike/delete-bike/:slug
   deleteBike = asyncHandler(async (req, res) => {
     const slug = req.params.slug ? String(req.params.slug).trim() : null;
+    const bikeName = await bikeService.deleteBike(slug);
 
-    const bike = await bikeService.deleteBike(slug);
-
-    // revalidate all bikes list caches
-    await bumpNsVersion("bikes");
+    // Invalidate list caches + specific item cache if maintained
+    await bumpNsVersion(NS);
+    await deleteCache(`bike:${slug}`);
 
     return ApiResponse.success(
       res,
       HTTP_STATUS.OK,
       "Bike deleted successfully",
-      bike,
+      bikeName,
     );
   });
 }

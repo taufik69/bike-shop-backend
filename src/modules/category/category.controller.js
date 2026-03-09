@@ -1,10 +1,7 @@
-const { ApiError } = require("@/shared/utils/apiError.utils");
 const ApiResponse = require("@/shared/utils/apiResponse.utils");
 const asyncHandler = require("@/shared/utils/asyncHandeler.utils");
-const categoryService = require("@/modules/category/category.service");
 const { HTTP_STATUS } = require("@/shared/config/constant.config");
-
-// cache utils
+const categoryService = require("@/modules/category/category.service");
 const {
   getCache,
   setCache,
@@ -13,66 +10,78 @@ const {
   deleteCache,
 } = require("@/shared/utils/cache.util");
 
+// Namespace used for all category caches
+const NS = "categories";
+
 class CategoryController {
+  // POST /category/create-category
   createCategory = asyncHandler(async (req, res) => {
     const category = await categoryService.createCategory(req.validatedData);
 
-    //  revalidate all category caches
-    await bumpNsVersion("categories");
+    // Invalidate all category list caches
+    await bumpNsVersion(NS);
 
-    // optional: single cache delete (if you keep detail cache by slug)
-    if (category?.slug) {
-      await deleteCache(`category:${category.slug}`);
-    }
-
-    ApiResponse.success(res, HTTP_STATUS.CREATED, "Category created", category);
+    return ApiResponse.success(
+      res,
+      HTTP_STATUS.CREATED,
+      "Category created successfully",
+      category,
+    );
   });
 
+  // GET /category/get-category
   getCategory = asyncHandler(async (req, res) => {
-    const query = {};
-    const slug = req.query.slug ? String(req.query.slug).trim() : null;
+    let query = {};
+    const slug = req.query.slug ? String(req.query.slug).trim() : "";
 
-    if (slug) query.slug = slug;
+    if (slug) {
+      query.slug = slug;
+    }
 
-    //  cache key
+    // Build a stable cache key based on the query (slug or all)
     const suffix = slug ? `slug=${slug}` : "all";
-    const cacheKey = await buildCacheKey("categories", suffix);
+    const cacheKey = await buildCacheKey(NS, suffix);
 
-    // try cache
+    // Try cache first
     const cached = await getCache(cacheKey);
     if (cached) {
       return ApiResponse.success(
         res,
         HTTP_STATUS.OK,
-        "Category fetched from cache",
+        "Categories fetched successfully (cache)",
         cached,
       );
     }
 
-    //  fetch from DB
-    const category = await categoryService.getCategories(query);
+    // DB fetch
+    const categories = await categoryService.getCategories(query);
 
-    //  set cache
-    await setCache(cacheKey, category, 60); // ttl 60s (adjust)
+    // Store in cache for 60 seconds
+    await setCache(cacheKey, categories, 60);
 
-    ApiResponse.success(res, HTTP_STATUS.OK, "Category fetched", category);
+    return ApiResponse.success(
+      res,
+      HTTP_STATUS.OK,
+      "Categories fetched successfully",
+      categories,
+    );
   });
 
+  // DELETE /category/delete-category/:slug
   deleteCategory = asyncHandler(async (req, res) => {
     const slug = req.params.slug ? String(req.params.slug).trim() : null;
-    if (!slug) {
-      throw new ApiError("Category slug is required", HTTP_STATUS.BAD_REQUEST);
-    }
-
     const category = await categoryService.deleteCategory(slug);
 
-    //  revalidate all category caches
-    await bumpNsVersion("categories");
-
-    //  optional: single cache delete (if you keep detail cache by slug)
+    // Invalidate list caches + specific slug cache if it exists
+    await bumpNsVersion(NS);
     await deleteCache(`category:${slug}`);
 
-    ApiResponse.success(res, HTTP_STATUS.OK, "Category deleted", category);
+    return ApiResponse.success(
+      res,
+      HTTP_STATUS.OK,
+      "Category deleted successfully",
+      category,
+    );
   });
 }
 

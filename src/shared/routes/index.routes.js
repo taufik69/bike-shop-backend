@@ -11,6 +11,6 @@ _.use("/category", categoryRoutes);
 _.use("/bike", bikeRoutes);
 _.use("/order", orderRoute);
 // contact routes
-_.use("/contact", contactRoutes);
+_.use("/contacts", contactRoutes);
 
 module.exports = _;

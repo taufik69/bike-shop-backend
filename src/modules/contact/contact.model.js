@@ -68,18 +68,18 @@ const contactSchema = new mongoose.Schema(
 );
 
 // check contact number or whats'a app number already exist or not
-contactSchema.pre("save", async function (next) {
+contactSchema.pre("save", async function () {
   const contact = await this.constructor.findOne({
     contactNumber: this.contactNumber,
     whatsappNumber: this.whatsappNumber,
   });
   if (contact) {
-    throw new ApiError(
+    return new ApiError(
       "Contact number or WhatsApp number already exist",
       HTTP_STATUS.BAD_REQUEST,
     );
   }
-  next();
+  return;
 });
 module.exports =
   mongoose.models.Contact || mongoose.model("Contact", contactSchema);

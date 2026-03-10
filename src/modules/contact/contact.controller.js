@@ -2,6 +2,7 @@ const ApiResponse = require("@/shared/utils/apiResponse.utils");
 const asyncHandler = require("@/shared/utils/asyncHandeler.utils");
 const { HTTP_STATUS } = require("@/shared/config/constant.config");
 const contactService = require("@/modules/contact/contact.service");
+const { ApiError } = require("@/shared/utils/apiError.utils");
 const {
   getCache,
   setCache,

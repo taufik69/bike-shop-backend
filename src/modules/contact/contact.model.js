@@ -74,7 +74,7 @@ contactSchema.pre("save", async function () {
     whatsappNumber: this.whatsappNumber,
   });
   if (contact) {
-    return new ApiError(
+    throw new ApiError(
       "Contact number or WhatsApp number already exist",
       HTTP_STATUS.BAD_REQUEST,
     );

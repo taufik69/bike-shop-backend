@@ -58,7 +58,7 @@ class ContactController {
     // DB fetch
     const contacts = await contactService.getAllContacts(q);
     if (contacts.length === 0) {
-      throw new ApiError("Contacts not found", HTTP_STATUS.NOT_FOUND);
+      ApiResponse.success(res, HTTP_STATUS.OK, "No contacts found", contacts);
     }
 
     // Store in cache for 60 seconds

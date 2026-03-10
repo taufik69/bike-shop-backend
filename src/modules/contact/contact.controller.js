@@ -55,7 +55,7 @@ class ContactController {
       );
     }
 
-    // DB fetch
+    // DB controller
     const contacts = await contactService.getAllContacts(q);
     if (contacts.length === 0) {
       ApiResponse.success(res, HTTP_STATUS.OK, "No contacts found", contacts);
